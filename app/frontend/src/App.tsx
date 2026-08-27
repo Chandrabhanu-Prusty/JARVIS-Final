@@ -4,7 +4,8 @@ import { fetchVoices, requestSpeech, transcribeRecording, Voice } from "./api/sp
 import { AmbientHud } from "./components/AmbientHud";
 import { ComponentState, SystemStatus } from "./components/SystemStatus";
 import { BriefingPanel } from "./components/BriefingPanel";
-import { checkBackendHealth } from "./api/system";
+import { waitForBackend } from "./api/system";
+import { isWebActionRequest, planWebAction, WebAction } from "./webActions";
 import cyberpunkBackground from "../../../refrences/cyberpunk_background_new.jpg";
 
 type Message = { author: "user" | "jarvis"; text: string };
@@ -27,15 +28,34 @@ export function App() {
   const [voiceId, setVoiceId] = useState("en-US-GuyNeural");
   const [level, setLevel] = useState(0);
   const [backendState, setBackendState] = useState<ComponentState>("unknown");
+  const [backendStarting, setBackendStarting] = useState(true);
   const [microphoneState, setMicrophoneState] = useState<ComponentState>("unknown");
   const [sttState, setSttState] = useState<ComponentState>("unknown");
   const [ttsState, setTtsState] = useState<ComponentState>("unknown");
   const [chatState, setChatState] = useState<ComponentState>("unknown");
   const [networkState, setNetworkState] = useState<ComponentState>(() => navigator.onLine ? "ready" : "error");
   const [bluetoothState] = useState<ComponentState>(() => "bluetooth" in navigator ? "ready" : "unknown");
+  const [pendingWebAction, setPendingWebAction] = useState<WebAction | null>(null);
 
-  useEffect(() => { void fetchVoices().then((items) => { setVoices(items); if (!items.some((item) => item.id === voiceId)) setVoiceId(items[0]?.id ?? voiceId); }).catch(() => setError("Voice options are unavailable. Text chat still works.")); }, []);
-  useEffect(() => { void checkBackendHealth().then((healthy) => setBackendState(healthy ? "ready" : "error")); }, []);
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const healthy = await waitForBackend();
+      if (cancelled) return;
+      setBackendState(healthy ? "ready" : "error");
+      setBackendStarting(false);
+      if (!healthy) { setError("Jarvis backend did not start. Restart the app and try again."); return; }
+      try {
+        const items = await fetchVoices();
+        if (cancelled) return;
+        setVoices(items);
+        if (!items.some((item) => item.id === voiceId)) setVoiceId(items[0]?.id ?? voiceId);
+      } catch {
+        if (!cancelled) setError("Voice options are unavailable. Text chat still works.");
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
   useEffect(() => { const updateNetwork = () => setNetworkState(navigator.onLine ? "ready" : "error"); window.addEventListener("online", updateNetwork); window.addEventListener("offline", updateNetwork); return () => { window.removeEventListener("online", updateNetwork); window.removeEventListener("offline", updateNetwork); }; }, []);
   useEffect(() => () => { stopSpeech(); stopCapture(); }, []);
 
@@ -78,6 +98,18 @@ export function App() {
     stopSpeech();
     setError("");
     setMessages((current) => [...current, { author: "user", text }]);
+    if (isWebActionRequest(text)) {
+      setStatus("thinking");
+      try {
+        const webAction = await planWebAction(text);
+        setPendingWebAction(webAction);
+        setMessages((current) => [...current, { author: "jarvis", text: `I prepared this browser action: ${webAction.label}. Please confirm.` }]);
+        setStatus("idle");
+        return;
+      } catch (reason) {
+        setError(reason instanceof Error ? reason.message : "Jarvis could not prepare that web action.");
+      }
+    }
     setStatus("thinking");
     try {
       const result = await sendChatMessage(sessionId.current, text);
@@ -91,16 +123,25 @@ export function App() {
     }
   }
 
+  function openConfirmedWebAction() {
+    if (!pendingWebAction) return;
+    // This runs inside the user's confirmation click, which browsers permit as
+    // a new-tab navigation. The backend generates the URL from constrained plan data.
+    window.open(pendingWebAction.url, "_blank", "noopener,noreferrer");
+    setMessages((current) => [...current, { author: "jarvis", text: `Opening ${pendingWebAction.label} in a new tab.` }]);
+    setPendingWebAction(null);
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const text = input.trim();
-    if (!text || status === "thinking") return;
+    if (!text || status === "thinking" || backendStarting) return;
     setInput("");
     await askJarvis(text);
   }
 
   async function startListening() {
-    if (status === "thinking" || recorderRef.current) return;
+    if (status === "thinking" || backendStarting || recorderRef.current) return;
     if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) { setError("This browser does not support microphone recording. Text chat remains available."); return; }
     try {
       setError("");
@@ -135,7 +176,7 @@ export function App() {
 
   function finishListening() { if (recorderRef.current?.state === "recording") recorderRef.current.stop(); }
   const active = status === "listening" || status === "thinking" || status === "speaking";
-  const stateLabel = status === "listening" ? "LISTENING / HOLD TO TALK" : status === "thinking" ? "PROCESSING REQUEST" : status === "speaking" ? "VOICE OUTPUT ACTIVE" : "SYSTEM ONLINE";
+  const stateLabel = backendStarting ? "STARTING LOCAL BACKEND" : status === "listening" ? "LISTENING / HOLD TO TALK" : status === "thinking" ? "PROCESSING REQUEST" : status === "speaking" ? "VOICE OUTPUT ACTIVE" : "SYSTEM ONLINE";
   const statusItems = [
     { label: "BACKEND", state: backendState, detail: backendState === "ready" ? "ONLINE" : undefined },
     { label: "NETWORK", state: networkState, detail: networkState === "ready" ? "ONLINE" : "OFFLINE" },
@@ -152,9 +193,9 @@ export function App() {
     <BriefingPanel />
     <section className="chat-card" aria-label="Jarvis assistant">
       <p className="eyebrow">JARVIS / SECURE CHANNEL</p><h1>At your service.</h1><p className="connection-state">{stateLabel}</p>
-      <div className="messages" aria-live="polite">{messages.length === 0 && <p>Type a message or hold to talk.</p>}{messages.map((message, index) => <p className={`message ${message.author}`} key={`${message.author}-${index}`}>{message.text}</p>)}{status === "thinking" && <p className="message jarvis">Thinking…</p>}</div>
-      <button className={`talk-button ${status === "listening" ? "is-listening" : ""}`} type="button" onPointerDown={(event) => { event.currentTarget.setPointerCapture(event.pointerId); void startListening(); }} onPointerUp={finishListening} onPointerCancel={finishListening} disabled={status === "thinking"}>{status === "listening" ? "Release to send" : "Hold to talk"}</button>
-      <form onSubmit={handleSubmit} className="composer"><label className="sr-only" htmlFor="chat-input">Message Jarvis</label><input id="chat-input" value={input} maxLength={2000} onChange={(event) => setInput(event.target.value)} placeholder="Type a message…" disabled={status === "thinking"}/><button type="submit" disabled={!input.trim() || status === "thinking"}>Send</button></form>
+      <div className="messages" aria-live="polite">{messages.length === 0 && <p>Type a message or hold to talk.</p>}{messages.map((message, index) => <p className={`message ${message.author}`} key={`${message.author}-${index}`}>{message.text}</p>)}{status === "thinking" && <p className="message jarvis">Thinking…</p>}{pendingWebAction && <div className="web-action-confirmation"><p>OPEN {pendingWebAction.label.toUpperCase()}?</p><small>{pendingWebAction.url}</small><div><button type="button" onClick={openConfirmedWebAction}>Open new tab</button><button type="button" onClick={() => setPendingWebAction(null)}>Cancel</button></div></div>}</div>
+      <button className={`talk-button ${status === "listening" ? "is-listening" : ""}`} type="button" onPointerDown={(event) => { event.currentTarget.setPointerCapture(event.pointerId); void startListening(); }} onPointerUp={finishListening} onPointerCancel={finishListening} disabled={status === "thinking" || backendStarting}>{status === "listening" ? "Release to send" : backendStarting ? "Starting Jarvis…" : "Hold to talk"}</button>
+      <form onSubmit={handleSubmit} className="composer"><label className="sr-only" htmlFor="chat-input">Message Jarvis</label><input id="chat-input" value={input} maxLength={2000} onChange={(event) => setInput(event.target.value)} placeholder="Type a message…" disabled={status === "thinking" || backendStarting}/><button type="submit" disabled={!input.trim() || status === "thinking" || backendStarting}>Send</button></form>
       <label className="voice-picker" htmlFor="voice-select">Voice<select id="voice-select" value={voiceId} onChange={(event) => setVoiceId(event.target.value)} disabled={!voices.length}>{voices.map((voice) => <option key={voice.id} value={voice.id}>{voice.label}</option>)}</select></label>
       {error && <p className="error" role="alert">{error}</p>}
     </section>

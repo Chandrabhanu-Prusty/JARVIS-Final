@@ -3,8 +3,7 @@ export type ChatResponse = {
   reply: string;
   turnsRetained: number;
 };
-
-const API_BASE_URL = import.meta.env.DEV ? "/api" : "http://127.0.0.1:8765/api";
+import { API_BASE_URL } from "./client";
 
 export async function sendChatMessage(sessionId: string, text: string): Promise<ChatResponse> {
   let response: Response;
@@ -15,7 +14,7 @@ export async function sendChatMessage(sessionId: string, text: string): Promise<
       body: JSON.stringify({ sessionId, text }),
     });
   } catch {
-    throw new Error("Backend unavailable. Start app/backend/run-dev.ps1, then try again.");
+    throw new Error("Jarvis service is unavailable. Please try again shortly.");
   }
 
   if (!response.ok) {

@@ -7,10 +7,9 @@ app/backend/.venv/
 app/backend/__pycache__/
 app/backend/**/*.py[cod]
 app/backend/.env
-
-# Tauri / Rust
-app/src-tauri/target/
-app/src-tauri/binaries/
+app/backend/build/
+app/backend/dist/
+app/backend/*.spec
 
 # Editor / OS
 .vscode/

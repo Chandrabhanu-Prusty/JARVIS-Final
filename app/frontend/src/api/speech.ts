@@ -1,6 +1,5 @@
 export type Voice = { id: string; label: string };
-
-const API_BASE_URL = import.meta.env.DEV ? "/api" : "http://127.0.0.1:8765/api";
+import { API_BASE_URL } from "./client";
 
 export async function fetchVoices(): Promise<Voice[]> {
   const response = await fetch(`${API_BASE_URL}/voices`);

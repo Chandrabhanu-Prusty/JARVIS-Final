@@ -17,6 +17,12 @@ h1 { margin: .45rem 0 .25rem; font-family: "Bahnschrift", "OCR A Std", "Share Te
 .message { width: fit-content; max-width: 85%; margin: 0; padding: .8rem 1rem; border: 1px solid rgba(136, 239, 255, .16); border-radius: 3px 14px 14px; line-height: 1.45; }
 .message.user { justify-self: end; border-color: rgba(85, 240, 221, .38); border-radius: 14px 3px 14px 14px; background: rgba(15, 90, 107, .72); color: #f4fdff; }
 .message.jarvis { background: rgba(17, 33, 58, .88); color: #c5f6ff; }
+.web-action-confirmation { width: fit-content; max-width: 100%; padding: .8rem 1rem; border: 1px solid rgba(105, 235, 255, .54); border-radius: 3px 12px 12px; background: rgba(5, 41, 59, .88); color: #ccfbff; font-family: "Share Tech Mono", monospace; }
+.web-action-confirmation p { margin: 0 0 .65rem; font-size: .72rem; letter-spacing: .08em; }
+.web-action-confirmation small { display: block; overflow: hidden; margin: -.3rem 0 .65rem; color: rgba(201, 241, 249, .7); font-size: .62rem; text-overflow: ellipsis; white-space: nowrap; }
+.web-action-confirmation div { display: flex; gap: .5rem; }
+.web-action-confirmation button { border: 1px solid rgba(105, 235, 255, .64); border-radius: 2px; padding: .42rem .58rem; color: #041019; background: #76eed5; font: inherit; font-size: .7rem; font-weight: 700; cursor: pointer; }
+.web-action-confirmation button:last-child { color: #d3f7ff; background: rgba(2, 16, 30, .75); }
 .composer { display: flex; gap: .7rem; }
 .composer input { min-width: 0; flex: 1; border: 1px solid rgba(94, 227, 255, .66); border-radius: 2px; padding: .9rem 1rem; color: inherit; background: rgba(1, 5, 14, .75); outline: none; }
 .composer input:focus { box-shadow: 0 0 0 3px rgba(89, 222, 255, .16); }

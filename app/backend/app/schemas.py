@@ -33,11 +33,11 @@ class TranscriptResponse(BaseModel):
     transcript: str
 
 
-class ActionRequest(BaseModel):
-    action: Literal["open-calculator", "open-notepad", "open-file-explorer"]
-    confirmed: bool
+class WebActionPlanRequest(BaseModel):
+    text: str = Field(min_length=1, max_length=2_000)
 
 
-class ActionResponse(BaseModel):
-    action: str
-    status: Literal["opened"]
+class WebActionPlanResponse(BaseModel):
+    kind: Literal["open_website", "web_search", "youtube_search", "spotify_search"]
+    label: str = Field(min_length=1, max_length=160)
+    url: str = Field(min_length=1, max_length=2_000)

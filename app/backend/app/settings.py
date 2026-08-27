@@ -6,12 +6,17 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
+def parse_origins(value: str) -> tuple[str, ...]:
+    return tuple(origin.strip().rstrip("/") for origin in value.split(",") if origin.strip())
+
+
 @dataclass(frozen=True)
 class Settings:
     backend_host: str = os.getenv("JARVIS_BACKEND_HOST", "127.0.0.1")
     backend_port: int = int(os.getenv("JARVIS_BACKEND_PORT", "8765"))
     groq_api_key: str = os.getenv("GROQ_API_KEY", "")
     groq_chat_model: str = os.getenv("GROQ_CHAT_MODEL", "openai/gpt-oss-20b")
+    allowed_origins: tuple[str, ...] = parse_origins(os.getenv("JARVIS_ALLOWED_ORIGINS", "http://localhost:1420,http://127.0.0.1:1420"))
 
 
 settings = Settings()

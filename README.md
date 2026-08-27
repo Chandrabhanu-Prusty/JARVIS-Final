@@ -1,19 +1,31 @@
 # Jarvis
 
-Lightweight Windows desktop voice assistant for workshop participants and ordinary student laptops.
+Lightweight web-based voice assistant for workshop participants and ordinary student laptops.
 
 ## Development layout
 
-- `app/frontend`: React + Vite WebView interface.
-- `app/backend`: FastAPI service for Groq and Edge TTS calls.
-- `app/src-tauri`: Windows desktop wrapper and narrowly scoped native integration.
+- `app/frontend`: React + Vite browser interface.
+- `app/backend`: FastAPI web API for Groq and Edge TTS calls.
 - `progress.md`: durable checkpoint and handoff record. Update it after every material change.
 
 ## Security baseline
 
-Copy `app/backend/.env.example` to `app/backend/.env` and supply your own Groq key. Never commit `.env`, credentials, audio recordings, or generated sidecar binaries.
+Copy `app/backend/.env.example` to `app/backend/.env` and supply your own Groq key. Never commit `.env`, credentials, or audio recordings.
 
-Jarvis never passes model-generated commands, paths, or program names to the operating system. Native actions will be fixed allowlist IDs and require user confirmation.
+Jarvis is a web app. It has no local application launcher, global keyboard hook, or arbitrary system-command capability. This keeps workshop use lightweight and safe.
+
+## Browser action plans
+
+For requests such as **open example.com**, Jarvis shows the exact HTTP(S) site
+before opening it in a new tab. For natural requests such as **open a video
+about orbital mechanics on YouTube** or **play lo-fi music on Spotify**, the API
+creates a constrained search plan and shows its generated URL for confirmation.
+
+The model may choose only `web_search`, `youtube_search`, or `spotify_search`
+and provide search text. It never provides a raw URL. The backend builds the
+destination URL and the browser opens it only after a visible click. YouTube and
+Spotify playback still requires the user's interaction on those sites because
+their providers and browsers enforce playback/login policies.
 
 ## Run locally
 
@@ -23,20 +35,28 @@ Open two terminals from the project root.
 2. Start the frontend: `cd app/frontend; npm run dev`
 3. Open the Vite URL shown in the second terminal, normally `http://localhost:1420`.
 
-The API key is read only by FastAPI. If the UI shows **Backend unavailable**, confirm that `http://127.0.0.1:8765/api/health` returns `{ "status": "ok" }` before troubleshooting the key or Groq.
+The API key is read only by FastAPI. If the UI shows **Jarvis service is unavailable**, confirm that `http://127.0.0.1:8765/api/health` returns `{ "status": "ok" }` before troubleshooting the key or Groq.
 
-## Build the Windows desktop app
+## Deploy as a web app
 
-The packaged Tauri app owns the FastAPI lifecycle through a loopback-only sidecar.
-Before packaging, build that backend binary with PyInstaller (a packaging-only tool):
+Deploy `app/backend` to a Python host and set these environment variables there:
 
-1. `python -m pip install pyinstaller`
-2. `./app/scripts/build-sidecar.ps1`
-3. `cd app/frontend; npm run tauri build`
+```text
+GROQ_API_KEY=your-key
+GROQ_CHAT_MODEL=openai/gpt-oss-20b
+JARVIS_ALLOWED_ORIGINS=https://your-frontend-domain.example
+```
 
-The target triple in `build-sidecar.ps1` must match `rustc -vV` (normally
-`x86_64-pc-windows-msvc`). Rust/Cargo and the Windows MSVC build tools must be
-installed before the native package can be built.
+Build the frontend with its public API address:
+
+```powershell
+cd app/frontend
+$env:VITE_API_BASE_URL = "https://your-api-domain.example/api"
+npm run build
+```
+
+Deploy the generated `app/frontend/dist` directory to any static host. The
+backend CORS allowlist must contain the exact frontend origin.
 
 ## Checkpoint discipline
 
