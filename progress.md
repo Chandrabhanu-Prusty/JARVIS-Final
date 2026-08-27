@@ -2,7 +2,7 @@
 
 ## Handoff status
 
-**Current checkpoint:** UI layout and live system-status panel (complete; awaiting approval)
+**Current checkpoint:** Tauri backend lifecycle and confirmed allowlisted actions (complete; native build blocked)
 
 This file is the durable implementation handoff. Read it before making changes, then update it after every material edit and before ending a context-limited session.
 
@@ -57,6 +57,15 @@ This file is the durable implementation handoff. Read it before making changes, 
 - 2026-08-27: Added a left-side live system-status panel: Backend Link, Text Engine, Microphone, Speech to Text, and Text to Speech. Green means a successful real check, red means a failed attempt, and gray means not checked—no fabricated health state.
 - 2026-08-27: UI refinement checkpoint complete. Do not begin the Tauri/action checkpoint without explicit user approval.
 - 2026-08-27: Status-panel polish: vertically centered the left panel on desktop and made every legend light a fixed flex item, aligning the red error light with its label. Mobile positioning remains unchanged.
+- 2026-08-27: User approved a compact Jarvis-style greeting plus local time, weather, and location. The location request will remain explicit and client-side; it will not be sent to the Jarvis backend or persisted.
+- 2026-08-27: Added a compact bottom-left local briefing with a time-aware Jarvis greeting, local clock/date, weather condition, and location status. It does nothing beyond the clock until the user presses **Share location**. With permission, the browser sends rounded coordinates directly to Open-Meteo for current temperature and weather code; neither data point is persisted or sent to FastAPI/Groq.
+- 2026-08-27: Added only `https://api.open-meteo.com` to the Tauri CSP `connect-src` allowlist, keeping external network access narrowly scoped to the opted-in weather lookup.
+- 2026-08-27: User approved continuing toward the Windows desktop app. Beginning the Tauri backend lifecycle and strict-confirmation action checkpoint after the UI telemetry adjustment.
+- 2026-08-27: Repositioned the local briefing toward the right-side HUD area, while preserving clearance from the fixed chat card. The system panel is now a two-column telemetry grid and its bottom edge is exactly aligned to the desktop viewport midpoint. It reports backend, browser network, text engine, Bluetooth capability, microphone, STT, and TTS states; unavailable checks remain gray instead of claiming success.
+- 2026-08-27: Added the strict `POST /api/actions` service with exactly three Windows allowlisted IDs: Calculator, Notepad, and File Explorer. It requires `confirmed: true`, uses fixed argument tuples with `shell=False`, rejects all other values in schema validation, and remains entirely separate from Groq/LLM output.
+- 2026-08-27: Added the Tauri shell sidecar lifecycle configuration. On a packaged Windows launch, Tauri starts only the bundled `jarvis-backend` binary and attempts to stop it as the app exits. A packaging script produces the target-triple-named binary using PyInstaller; source and generated binary remain separate.
+- 2026-08-27: Added `tauri-plugin-shell = "2"`. This is the only new native dependency: Tauri's official mechanism for a narrowly scoped bundled sidecar, needed because a browser cannot own the local FastAPI process.
+- 2026-08-27: Checkpoint 6 source implementation is complete. Do not begin configurable Ctrl+Space handling without explicit approval. Native package verification is blocked until Rust/Cargo, MSVC build tools, and the packaging-only PyInstaller command are available.
 
 ## Verification log
 
@@ -80,4 +89,9 @@ This file is the durable implementation handoff. Read it before making changes, 
 - 2026-08-27: Post-fix verification passed: `python -m pytest tests -q` (7 tests), `npm run lint`, and `npm run build`.
 - 2026-08-27: UI refinement verification passed: `npm run lint` and `npm run build`.
 - 2026-08-27: Status-panel polish verification passed: `npm run lint` and `npm run build`.
+- 2026-08-27: Briefing-panel verification passed: `npm run lint` and `npm run build`.
+- 2026-08-27: Telemetry-layout verification passed: `npm run lint` and `npm run build`.
+- 2026-08-27: Allowlisted-action verification passed: `python -m compileall -q app` and `python -m pytest tests -q` (10 passed). Pytest emitted one cache-path warning for the pre-existing `.pytest_cache` state; no test failed.
+- 2026-08-27: Sidecar source is not native-compiled: Cargo is still unavailable on this machine, and no generated sidecar binary is checked into the repository. After installing prerequisites, run the documented PyInstaller script, then `npm run tauri build` from `app/frontend`.
+- Manual check required: press **Share location**, grant or deny the Windows/browser location prompt, and confirm the expected privacy state and (when granted) a time, rounded coordinates, and weather result. The request requires the user's local permission and network, so it is not automated.
 - Blocked verification: `cargo` is not installed or on `PATH`, so the Tauri native build could not run. Install Rust/Cargo and the Windows MSVC build tools before the desktop wrapper/package checkpoint; do not fake this check.

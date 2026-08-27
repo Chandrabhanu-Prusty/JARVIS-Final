@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.chat import router as chat_router
 from app.api.speech import router as speech_router
+from app.api.actions import router as actions_router
 
 app = FastAPI(title="Jarvis Backend", version="0.1.0")
 
@@ -16,6 +17,7 @@ app.add_middleware(
 )
 app.include_router(chat_router)
 app.include_router(speech_router)
+app.include_router(actions_router)
 
 
 @app.get("/api/health")

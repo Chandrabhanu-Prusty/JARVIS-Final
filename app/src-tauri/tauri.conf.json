@@ -22,11 +22,12 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; connect-src 'self' http://127.0.0.1:8765; img-src 'self' asset: data: blob:; media-src 'self' blob:; style-src 'self' 'unsafe-inline';"
+      "csp": "default-src 'self'; connect-src 'self' http://127.0.0.1:8765 https://api.open-meteo.com; img-src 'self' asset: data: blob:; media-src 'self' blob:; style-src 'self' 'unsafe-inline';"
     }
   },
   "bundle": {
     "active": true,
-    "targets": "nsis"
+    "targets": "nsis",
+    "externalBin": ["binaries/jarvis-backend"]
   }
 }

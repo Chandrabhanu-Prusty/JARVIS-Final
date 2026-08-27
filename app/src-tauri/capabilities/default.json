@@ -3,5 +3,5 @@
   "identifier": "main-capability",
   "description": "Minimal capability for Jarvis's local main window.",
   "windows": ["main"],
-  "permissions": ["core:default"]
+  "permissions": ["core:default", {"identifier": "shell:allow-spawn", "allow": [{"name": "binaries/jarvis-backend", "sidecar": true}]}]
 }

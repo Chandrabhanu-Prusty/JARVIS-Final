@@ -1,3 +1,4 @@
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -30,3 +31,13 @@ class TtsRequest(BaseModel):
 
 class TranscriptResponse(BaseModel):
     transcript: str
+
+
+class ActionRequest(BaseModel):
+    action: Literal["open-calculator", "open-notepad", "open-file-explorer"]
+    confirmed: bool
+
+
+class ActionResponse(BaseModel):
+    action: str
+    status: Literal["opened"]

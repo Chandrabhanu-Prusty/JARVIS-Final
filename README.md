@@ -25,6 +25,19 @@ Open two terminals from the project root.
 
 The API key is read only by FastAPI. If the UI shows **Backend unavailable**, confirm that `http://127.0.0.1:8765/api/health` returns `{ "status": "ok" }` before troubleshooting the key or Groq.
 
+## Build the Windows desktop app
+
+The packaged Tauri app owns the FastAPI lifecycle through a loopback-only sidecar.
+Before packaging, build that backend binary with PyInstaller (a packaging-only tool):
+
+1. `python -m pip install pyinstaller`
+2. `./app/scripts/build-sidecar.ps1`
+3. `cd app/frontend; npm run tauri build`
+
+The target triple in `build-sidecar.ps1` must match `rustc -vV` (normally
+`x86_64-pc-windows-msvc`). Rust/Cargo and the Windows MSVC build tools must be
+installed before the native package can be built.
+
 ## Checkpoint discipline
 
 Implementation proceeds one approved checkpoint at a time. The current state and verification record live in `progress.md`.

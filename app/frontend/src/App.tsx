@@ -3,6 +3,7 @@ import { sendChatMessage } from "./api/chat";
 import { fetchVoices, requestSpeech, transcribeRecording, Voice } from "./api/speech";
 import { AmbientHud } from "./components/AmbientHud";
 import { ComponentState, SystemStatus } from "./components/SystemStatus";
+import { BriefingPanel } from "./components/BriefingPanel";
 import { checkBackendHealth } from "./api/system";
 import cyberpunkBackground from "../../../refrences/cyberpunk_background_new.jpg";
 
@@ -30,9 +31,12 @@ export function App() {
   const [sttState, setSttState] = useState<ComponentState>("unknown");
   const [ttsState, setTtsState] = useState<ComponentState>("unknown");
   const [chatState, setChatState] = useState<ComponentState>("unknown");
+  const [networkState, setNetworkState] = useState<ComponentState>(() => navigator.onLine ? "ready" : "error");
+  const [bluetoothState] = useState<ComponentState>(() => "bluetooth" in navigator ? "ready" : "unknown");
 
   useEffect(() => { void fetchVoices().then((items) => { setVoices(items); if (!items.some((item) => item.id === voiceId)) setVoiceId(items[0]?.id ?? voiceId); }).catch(() => setError("Voice options are unavailable. Text chat still works.")); }, []);
   useEffect(() => { void checkBackendHealth().then((healthy) => setBackendState(healthy ? "ready" : "error")); }, []);
+  useEffect(() => { const updateNetwork = () => setNetworkState(navigator.onLine ? "ready" : "error"); window.addEventListener("online", updateNetwork); window.addEventListener("offline", updateNetwork); return () => { window.removeEventListener("online", updateNetwork); window.removeEventListener("offline", updateNetwork); }; }, []);
   useEffect(() => () => { stopSpeech(); stopCapture(); }, []);
 
   function stopSpeech() {
@@ -133,8 +137,10 @@ export function App() {
   const active = status === "listening" || status === "thinking" || status === "speaking";
   const stateLabel = status === "listening" ? "LISTENING / HOLD TO TALK" : status === "thinking" ? "PROCESSING REQUEST" : status === "speaking" ? "VOICE OUTPUT ACTIVE" : "SYSTEM ONLINE";
   const statusItems = [
-    { label: "BACKEND LINK", state: backendState },
+    { label: "BACKEND", state: backendState, detail: backendState === "ready" ? "ONLINE" : undefined },
+    { label: "NETWORK", state: networkState, detail: networkState === "ready" ? "ONLINE" : "OFFLINE" },
     { label: "TEXT ENGINE", state: chatState },
+    { label: "BLUETOOTH", state: bluetoothState, detail: bluetoothState === "ready" ? "AVAILABLE" : undefined },
     { label: "MICROPHONE", state: microphoneState },
     { label: "SPEECH TO TEXT", state: sttState },
     { label: "TEXT TO SPEECH", state: ttsState },
@@ -143,6 +149,7 @@ export function App() {
   return <main className="app-shell" style={{ "--background-image": `url(${cyberpunkBackground})` } as CSSProperties}>
     <AmbientHud active={active} level={status === "listening" ? level : status === "speaking" ? .72 : .35} />
     <SystemStatus items={statusItems} />
+    <BriefingPanel />
     <section className="chat-card" aria-label="Jarvis assistant">
       <p className="eyebrow">JARVIS / SECURE CHANNEL</p><h1>At your service.</h1><p className="connection-state">{stateLabel}</p>
       <div className="messages" aria-live="polite">{messages.length === 0 && <p>Type a message or hold to talk.</p>}{messages.map((message, index) => <p className={`message ${message.author}`} key={`${message.author}-${index}`}>{message.text}</p>)}{status === "thinking" && <p className="message jarvis">Thinking…</p>}</div>
