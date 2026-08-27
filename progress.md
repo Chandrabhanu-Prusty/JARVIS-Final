@@ -6,7 +6,7 @@
 
 This file is the durable handoff. Update it after every material change and before ending a context-limited session.
 
-**Cleanup checkpoint (2026-08-27):** Added a workshop-ready root README, self-contained `app/frontend/README.md` and `app/backend/README.md`, plus `docs/WORKSHOP.md`. Simplified the frontend build command so it no longer creates TypeScript build-output files beside source. Backend tests passed (16); frontend lint and production build passed. Permanent deletion of the unused `refrences/` archive, historical desktop build outputs, duplicate source video, and obsolete tool metadata is pending explicit confirmation because it is irreversible.
+**Cleanup checkpoint (2026-08-27):** Added a workshop-ready root README, self-contained `app/frontend/README.md` and `app/backend/README.md`, plus `docs/WORKSHOP.md`. Simplified the frontend build command so it no longer creates TypeScript build-output files beside source. Removed the unused `refrences/` archive, historical desktop build outputs, duplicate source video, obsolete tool metadata, generated artifacts, and empty `app/services/` directory. Backend tests passed (16); frontend lint and production build passed. The only remaining non-source cache folders are environment-locked and already ignored by Git.
 
 ## Delivered
 
