@@ -4,12 +4,17 @@ app/frontend/dist/
 
 # Python
 app/backend/.venv/
-app/backend/__pycache__/
-app/backend/**/*.py[cod]
+__pycache__/
+*.py[cod]
+.pytest_cache/
 app/backend/.env
 app/backend/build/
 app/backend/dist/
 app/backend/*.spec
+app/backend/sidecar-diagnostic.*
+
+# TypeScript build cache
+*.tsbuildinfo
 
 # Editor / OS
 .vscode/

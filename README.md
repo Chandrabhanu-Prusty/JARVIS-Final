@@ -1,82 +1,88 @@
 # Jarvis
 
-Lightweight web-based voice assistant for workshop participants and ordinary student laptops.
+Jarvis is a lightweight, web-first voice assistant built for a two-day student workshop. It runs as a React + Vite browser interface backed by a small FastAPI service. It deliberately avoids Electron, Docker, databases, and local AI models so it remains practical on ordinary laptops.
 
-## Development layout
+## What it does
 
-- `app/frontend`: React + Vite browser interface.
-- `app/backend`: FastAPI web API for Groq and Edge TTS calls.
-- `progress.md`: durable checkpoint and handoff record. Update it after every material change.
+- Text chat using Groq LLM responses with only the latest six turns held in memory.
+- Browser hold-to-talk: Groq Whisper speech-to-text, selectable Edge TTS voices, and text-only fallback.
+- A cyberpunk HUD with a muted looping video, audio-reactive signal field, movable panels, and a movable hold-to-talk orb.
+- Safe browser action planning for arbitrary websites plus web, YouTube, and Spotify searches. Every destination is shown and requires a user confirmation click.
+- An optional **local-only** Windows bridge for four allowlisted applications: Calculator, Notepad, File Explorer, and Visual Studio Code. It is disabled by default and never accepts a path, command, or LLM-generated executable.
 
-## Security baseline
-
-Copy `app/backend/.env.example` to `app/backend/.env` and supply your own Groq key. Never commit `.env`, credentials, or audio recordings.
-
-Jarvis is a web app. It has no local application launcher, global keyboard hook, or arbitrary system-command capability. This keeps workshop use lightweight and safe.
-
-## Browser action plans
-
-For requests such as **open example.com**, Jarvis shows the exact HTTP(S) site
-before opening it in a new tab. For natural requests such as **open a video
-about orbital mechanics on YouTube** or **play lo-fi music on Spotify**, the API
-creates a constrained search plan and shows its generated URL for confirmation.
-
-The model may choose only `web_search`, `youtube_search`, or `spotify_search`
-and provide search text. It never provides a raw URL. The backend builds the
-destination URL and the browser opens it only after a visible click. YouTube and
-Spotify playback still requires the user's interaction on those sites because
-their providers and browsers enforce playback/login policies.
-
-## Optional local-app bridge
-
-Jarvis can optionally open four Windows applications: Calculator, Notepad,
-File Explorer, and Visual Studio Code. This is disabled by default. To enable
-it only for your local workshop machine, add this to `app/backend/.env` and
-restart the backend:
+## Architecture
 
 ```text
-JARVIS_LOCAL_ACTIONS_ENABLED=true
+Browser (React + Vite)
+  ├─ text / microphone capture / audio playback
+  ├─ movable HUD, orb, local layout storage
+  └─ confirmed navigation in a new browser tab
+                  │ HTTP to /api
+                  ▼
+FastAPI
+  ├─ Groq chat + six-turn in-memory context
+  ├─ Groq Whisper transcription
+  ├─ Edge TTS audio generation
+  ├─ constrained browser-action planner
+  └─ optional strict Windows allowlist bridge
 ```
 
-The backend must stay bound to `127.0.0.1`. Jarvis always shows a confirmation
-button before opening an application. The backend accepts only fixed allowlist
-IDs; it never accepts a path, executable name, argument, shell command, or
-model-generated program launch instruction.
+The frontend never receives the Groq key. Audio is sent only for transcription and is not stored. The browser action planner generates permitted destinations; it does not execute arbitrary commands.
 
-This bridge is intentionally unavailable in a browser-only deployment. A
-publicly hosted frontend must not be configured to access local applications.
-
-## Run locally
-
-Open two terminals from the project root.
-
-1. Start FastAPI: `./app/backend/run-dev.ps1`
-2. Start the frontend: `cd app/frontend; npm run dev`
-3. Open the Vite URL shown in the second terminal, normally `http://localhost:1420`.
-
-The API key is read only by FastAPI. If the UI shows **Jarvis service is unavailable**, confirm that `http://127.0.0.1:8765/api/health` returns `{ "status": "ok" }` before troubleshooting the key or Groq.
-
-## Deploy as a web app
-
-Deploy `app/backend` to a Python host and set these environment variables there:
+## Repository layout
 
 ```text
-GROQ_API_KEY=your-key
-GROQ_CHAT_MODEL=openai/gpt-oss-20b
-JARVIS_ALLOWED_ORIGINS=https://your-frontend-domain.example
+app/
+  frontend/                 React + Vite application; can become its own repository
+    README.md               frontend setup, build, and deployment guide
+    src/
+  backend/                  FastAPI API; can become its own repository
+    README.md               backend setup, environment, and API guide
+    app/
+    tests/
+docs/
+  WORKSHOP.md               two-day workshop sequence and split-repository plan
+DESIGN.md                   UI and interaction design context
+progress.md                 durable implementation and verification record
 ```
 
-Build the frontend with its public API address:
+## Fast local start
+
+You need Node.js 20+ and Python 3.11+.
+
+1. Read [the backend guide](app/backend/README.md), create `app/backend/.env` from `.env.example`, and add your Groq API key.
+2. Start the API in PowerShell:
+
+   ```powershell
+   cd app/backend
+   .\run-dev.ps1
+   ```
+
+3. In a second terminal, follow [the frontend guide](app/frontend/README.md) to run Vite:
+
+   ```powershell
+   cd app/frontend
+   npm install
+   npm run dev
+   ```
+
+4. Open the displayed Vite address, normally `http://localhost:1420`.
+
+## Verification
 
 ```powershell
+# terminal 1
+cd app/backend
+python -m pytest tests -q
+
+# terminal 2
 cd app/frontend
-$env:VITE_API_BASE_URL = "https://your-api-domain.example/api"
+npm run lint
 npm run build
 ```
 
-Deploy the generated `app/frontend/dist` directory to any static host. The
-backend CORS allowlist must contain the exact frontend origin.
+## Deployment and safety
 
-## Checkpoint discipline
+For a public web deployment, host the frontend static build and FastAPI API separately. Set `VITE_API_BASE_URL` to the deployed API's `/api` address at build time, and set `JARVIS_ALLOWED_ORIGINS` to the exact frontend origin. Do not enable the Windows local-app bridge in a public deployment.
 
-Implementation proceeds one approved checkpoint at a time. The current state and verification record live in `progress.md`.
+See [docs/WORKSHOP.md](docs/WORKSHOP.md) for the workshop flow, repository split, and deployment notes. The complete implementation history is in [progress.md](progress.md).
