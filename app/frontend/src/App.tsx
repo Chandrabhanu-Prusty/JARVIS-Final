@@ -1,17 +1,31 @@
-import { CSSProperties, FormEvent, useEffect, useRef, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { sendChatMessage } from "./api/chat";
 import { fetchVoices, requestSpeech, transcribeRecording, Voice } from "./api/speech";
 import { AmbientHud } from "./components/AmbientHud";
+import { ActivityMonitor } from "./components/ActivityMonitor";
 import { ComponentState, SystemStatus } from "./components/SystemStatus";
 import { BriefingPanel } from "./components/BriefingPanel";
+import { MovablePanel } from "./components/MovablePanel";
 import { waitForBackend } from "./api/system";
 import { isWebActionRequest, planWebAction, WebAction } from "./webActions";
-import cyberpunkBackground from "../../../refrences/cyberpunk_background_new.jpg";
+import cyberpunkBackgroundVideo from "./assets/cyberpunk-background.mp4";
 
 type Message = { author: "user" | "jarvis"; text: string };
 type Status = "idle" | "listening" | "thinking" | "speaking" | "error";
 
+function defaultPanelPositions() {
+  const viewportWidth = window.innerWidth;
+  const viewportHeight = window.innerHeight;
+  return {
+    activity: { x: 34, y: 118 },
+    briefing: { x: 34, y: Math.max(490, viewportHeight - 268) },
+    chat: { x: Math.max(360, viewportWidth - 404), y: Math.max(72, Math.round((viewportHeight - 540) / 2)) },
+    status: { x: 34, y: 292 },
+  };
+}
+
 export function App() {
+  const panelPositions = useRef(defaultPanelPositions());
   const sessionId = useRef(crypto.randomUUID());
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioUrlRef = useRef<string | null>(null);
@@ -20,6 +34,7 @@ export function App() {
   const audioContextRef = useRef<AudioContext | null>(null);
   const animationRef = useRef<number | null>(null);
   const recordingStartedAtRef = useRef(0);
+  const messagesRef = useRef<HTMLDivElement | null>(null);
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
   const [status, setStatus] = useState<Status>("idle");
@@ -58,6 +73,7 @@ export function App() {
   }, []);
   useEffect(() => { const updateNetwork = () => setNetworkState(navigator.onLine ? "ready" : "error"); window.addEventListener("online", updateNetwork); window.addEventListener("offline", updateNetwork); return () => { window.removeEventListener("online", updateNetwork); window.removeEventListener("offline", updateNetwork); }; }, []);
   useEffect(() => () => { stopSpeech(); stopCapture(); }, []);
+  useEffect(() => { requestAnimationFrame(() => messagesRef.current?.scrollTo({ top: messagesRef.current.scrollHeight, behavior: "smooth" })); }, [messages, pendingWebAction, status]);
 
   function stopSpeech() {
     audioRef.current?.pause();
@@ -103,8 +119,10 @@ export function App() {
       try {
         const webAction = await planWebAction(text);
         setPendingWebAction(webAction);
-        setMessages((current) => [...current, { author: "jarvis", text: `I prepared this browser action: ${webAction.label}. Please confirm.` }]);
+        const reply = `I prepared ${webAction.label}. Select Open new tab to continue.`;
+        setMessages((current) => [...current, { author: "jarvis", text: reply }]);
         setStatus("idle");
+        void playSpeech(reply);
         return;
       } catch (reason) {
         setError(reason instanceof Error ? reason.message : "Jarvis could not prepare that web action.");
@@ -187,17 +205,29 @@ export function App() {
     { label: "TEXT TO SPEECH", state: ttsState },
   ];
 
-  return <main className="app-shell" style={{ "--background-image": `url(${cyberpunkBackground})` } as CSSProperties}>
+  return <main className="app-shell">
+    <video className="background-video" autoPlay muted loop playsInline preload="auto" aria-hidden="true">
+      <source src={cyberpunkBackgroundVideo} type="video/mp4" />
+    </video>
     <AmbientHud active={active} level={status === "listening" ? level : status === "speaking" ? .72 : .35} />
-    <SystemStatus items={statusItems} />
-    <BriefingPanel />
-    <section className="chat-card" aria-label="Jarvis assistant">
-      <p className="eyebrow">JARVIS / SECURE CHANNEL</p><h1>At your service.</h1><p className="connection-state">{stateLabel}</p>
-      <div className="messages" aria-live="polite">{messages.length === 0 && <p>Type a message or hold to talk.</p>}{messages.map((message, index) => <p className={`message ${message.author}`} key={`${message.author}-${index}`}>{message.text}</p>)}{status === "thinking" && <p className="message jarvis">Thinking…</p>}{pendingWebAction && <div className="web-action-confirmation"><p>OPEN {pendingWebAction.label.toUpperCase()}?</p><small>{pendingWebAction.url}</small><div><button type="button" onClick={openConfirmedWebAction}>Open new tab</button><button type="button" onClick={() => setPendingWebAction(null)}>Cancel</button></div></div>}</div>
+    <MovablePanel id="activity" label="Activity monitor" className="activity-panel" defaultPosition={panelPositions.current.activity}>
+      <ActivityMonitor state={status} />
+    </MovablePanel>
+    <MovablePanel id="system-status" label="System status" className="status-panel" defaultPosition={panelPositions.current.status}>
+      <SystemStatus items={statusItems} />
+    </MovablePanel>
+    <MovablePanel id="briefing" label="Local system briefing" className="briefing-panel-wrapper" defaultPosition={panelPositions.current.briefing}>
+      <BriefingPanel />
+    </MovablePanel>
+    <MovablePanel id="conversation" label="Jarvis conversation" className="chat-panel" defaultPosition={panelPositions.current.chat}>
+      <section className="chat-card" aria-label="Jarvis assistant">
+      <p className="jarvis-brand">JARVIS</p><h1>At your service.</h1><p className="connection-state">{stateLabel}</p>
+      <div className="messages" ref={messagesRef} aria-live="polite">{messages.length === 0 && <p>Type a message or hold to talk.</p>}{messages.map((message, index) => <p className={`message ${message.author}`} key={`${message.author}-${index}`}>{message.text}</p>)}{status === "thinking" && <p className="message jarvis">Thinking…</p>}{pendingWebAction && <div className="web-action-confirmation"><p>OPEN {pendingWebAction.label.toUpperCase()}?</p><small>{pendingWebAction.url}</small><div><button type="button" onClick={openConfirmedWebAction}>Open new tab</button><button type="button" onClick={() => setPendingWebAction(null)}>Cancel</button></div></div>}</div>
       <button className={`talk-button ${status === "listening" ? "is-listening" : ""}`} type="button" onPointerDown={(event) => { event.currentTarget.setPointerCapture(event.pointerId); void startListening(); }} onPointerUp={finishListening} onPointerCancel={finishListening} disabled={status === "thinking" || backendStarting}>{status === "listening" ? "Release to send" : backendStarting ? "Starting Jarvis…" : "Hold to talk"}</button>
-      <form onSubmit={handleSubmit} className="composer"><label className="sr-only" htmlFor="chat-input">Message Jarvis</label><input id="chat-input" value={input} maxLength={2000} onChange={(event) => setInput(event.target.value)} placeholder="Type a message…" disabled={status === "thinking" || backendStarting}/><button type="submit" disabled={!input.trim() || status === "thinking" || backendStarting}>Send</button></form>
+      <form onSubmit={handleSubmit} noValidate className="composer"><label className="sr-only" htmlFor="chat-input">Message Jarvis</label><input id="chat-input" value={input} maxLength={2000} onChange={(event) => setInput(event.target.value)} placeholder="Type a message…" disabled={status === "thinking" || backendStarting}/><button type="submit" disabled={!input.trim() || status === "thinking" || backendStarting}>Send</button></form>
       <label className="voice-picker" htmlFor="voice-select">Voice<select id="voice-select" value={voiceId} onChange={(event) => setVoiceId(event.target.value)} disabled={!voices.length}>{voices.map((voice) => <option key={voice.id} value={voice.id}>{voice.label}</option>)}</select></label>
       {error && <p className="error" role="alert">{error}</p>}
-    </section>
+      </section>
+    </MovablePanel>
   </main>;
 }

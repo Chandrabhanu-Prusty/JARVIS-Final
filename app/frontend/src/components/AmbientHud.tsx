@@ -11,7 +11,6 @@ const signalLines = Array.from({ length: 22 }, (_, index) => ({
 export function AmbientHud({ active, level }: AmbientHudProps) {
   return (
     <div className={`ambient-hud ${active ? "is-active" : ""}`} style={{ "--audio-level": level } as CSSProperties} aria-hidden="true">
-      <div className="moon-orbit"><div className="moon" /></div>
       <svg className="signal-field" viewBox="0 0 620 190" preserveAspectRatio="none">
         {signalLines.map((line, index) => (
           <line
@@ -25,7 +24,6 @@ export function AmbientHud({ active, level }: AmbientHudProps) {
           />
         ))}
       </svg>
-      <div className="hud-grid" />
       <p className="hud-caption">AUDIO LINK / STANDBY</p>
     </div>
   );
