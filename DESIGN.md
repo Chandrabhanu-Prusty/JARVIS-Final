@@ -7,7 +7,7 @@ Jarvis is a lightweight browser voice assistant for students using ordinary Wind
 ## Visual direction
 
 - **Register:** compact field console; cinematic background, disciplined information modules.
-- **Signature:** independently positionable HUD modules. A right-click opens a small Move/Fix position menu; position is saved only after Fix position is selected.
+- **Signature:** independently positionable HUD modules and a central voice orb. A right-click opens a small Move/Fix position menu; position is saved only after Fix position is selected.
 - **Composition:** conversation sits mid-right, status and activity cluster on the left, and the local briefing occupies the lower field. The background video remains unobstructed between modules.
 - **Motion:** video and the bottom audio signal field provide the ambient motion. Panel movement is direct, deliberate, and respects reduced-motion preferences.
 
@@ -27,6 +27,7 @@ Jarvis is a lightweight browser voice assistant for students using ordinary Wind
 ## Interaction contract
 
 - All dashboard modules are movable on desktop. Right-click opens Move or Fix position; selecting Move enables the module’s dedicated drag handle.
+- The central orb is also the primary hold-to-talk control and can be repositioned using the same Move/Fix interaction as the other modules.
 - The drag handle also supports Arrow keys for small movements, Enter or Escape to fix its current position, and a visible status label while moving.
 - Fixed positions are stored locally under a versioned Jarvis layout key. No position data is sent to the API.
 - On narrow screens, modules return to document flow and remain usable without dragging.

@@ -41,3 +41,28 @@ class WebActionPlanResponse(BaseModel):
     kind: Literal["open_website", "web_search", "youtube_search", "spotify_search"]
     label: str = Field(min_length=1, max_length=160)
     url: str = Field(min_length=1, max_length=2_000)
+
+
+class LocalActionPlanRequest(BaseModel):
+    text: str = Field(min_length=1, max_length=2_000)
+
+
+class LocalActionPlanResponse(BaseModel):
+    kind: Literal["open_local_app"]
+    app_id: Literal["calculator", "notepad", "file_explorer", "vscode"] = Field(alias="appId")
+    label: str = Field(min_length=1, max_length=160)
+    requires_confirmation: bool = Field(alias="requiresConfirmation")
+
+
+class LocalActionExecuteRequest(BaseModel):
+    app_id: Literal["calculator", "notepad", "file_explorer", "vscode"] = Field(alias="appId")
+    confirmed: Literal[True]
+
+
+class LocalActionExecuteResponse(BaseModel):
+    ok: bool
+    message: str
+
+
+class LocalActionStatusResponse(BaseModel):
+    enabled: bool

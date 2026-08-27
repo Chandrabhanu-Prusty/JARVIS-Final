@@ -6,8 +6,10 @@ import { ActivityMonitor } from "./components/ActivityMonitor";
 import { ComponentState, SystemStatus } from "./components/SystemStatus";
 import { BriefingPanel } from "./components/BriefingPanel";
 import { MovablePanel } from "./components/MovablePanel";
+import { OrbControl } from "./components/OrbControl";
 import { waitForBackend } from "./api/system";
 import { isWebActionRequest, planWebAction, WebAction } from "./webActions";
+import { executeLocalAction, getLocalActionStatus, isLocalActionRequest, LocalAction, planLocalAction } from "./localActions";
 import cyberpunkBackgroundVideo from "./assets/cyberpunk-background.mp4";
 
 type Message = { author: "user" | "jarvis"; text: string };
@@ -20,6 +22,7 @@ function defaultPanelPositions() {
     activity: { x: 34, y: 118 },
     briefing: { x: 34, y: Math.max(490, viewportHeight - 268) },
     chat: { x: Math.max(360, viewportWidth - 404), y: Math.max(72, Math.round((viewportHeight - 540) / 2)) },
+    orb: { x: Math.round((viewportWidth - 180) / 2), y: Math.round((viewportHeight - 180) / 2) },
     status: { x: 34, y: 292 },
   };
 }
@@ -48,9 +51,12 @@ export function App() {
   const [sttState, setSttState] = useState<ComponentState>("unknown");
   const [ttsState, setTtsState] = useState<ComponentState>("unknown");
   const [chatState, setChatState] = useState<ComponentState>("unknown");
+  const [localActionsState, setLocalActionsState] = useState<ComponentState>("unknown");
+  const [localActionsEnabled, setLocalActionsEnabled] = useState(false);
   const [networkState, setNetworkState] = useState<ComponentState>(() => navigator.onLine ? "ready" : "error");
   const [bluetoothState] = useState<ComponentState>(() => "bluetooth" in navigator ? "ready" : "unknown");
   const [pendingWebAction, setPendingWebAction] = useState<WebAction | null>(null);
+  const [pendingLocalAction, setPendingLocalAction] = useState<LocalAction | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -60,20 +66,30 @@ export function App() {
       setBackendState(healthy ? "ready" : "error");
       setBackendStarting(false);
       if (!healthy) { setError("Jarvis backend did not start. Restart the app and try again."); return; }
+      const voiceRequest = fetchVoices();
+      const localActionsRequest = getLocalActionStatus();
       try {
-        const items = await fetchVoices();
+        const items = await voiceRequest;
         if (cancelled) return;
         setVoices(items);
         if (!items.some((item) => item.id === voiceId)) setVoiceId(items[0]?.id ?? voiceId);
       } catch {
         if (!cancelled) setError("Voice options are unavailable. Text chat still works.");
       }
+      try {
+        const enabled = await localActionsRequest;
+        if (cancelled) return;
+        setLocalActionsEnabled(enabled);
+        setLocalActionsState(enabled ? "ready" : "unknown");
+      } catch {
+        if (!cancelled) setLocalActionsState("error");
+      }
     })();
     return () => { cancelled = true; };
   }, []);
   useEffect(() => { const updateNetwork = () => setNetworkState(navigator.onLine ? "ready" : "error"); window.addEventListener("online", updateNetwork); window.addEventListener("offline", updateNetwork); return () => { window.removeEventListener("online", updateNetwork); window.removeEventListener("offline", updateNetwork); }; }, []);
   useEffect(() => () => { stopSpeech(); stopCapture(); }, []);
-  useEffect(() => { requestAnimationFrame(() => messagesRef.current?.scrollTo({ top: messagesRef.current.scrollHeight, behavior: "smooth" })); }, [messages, pendingWebAction, status]);
+  useEffect(() => { requestAnimationFrame(() => messagesRef.current?.scrollTo({ top: messagesRef.current.scrollHeight, behavior: "smooth" })); }, [messages, pendingWebAction, pendingLocalAction, status]);
 
   function stopSpeech() {
     audioRef.current?.pause();
@@ -114,8 +130,25 @@ export function App() {
     stopSpeech();
     setError("");
     setMessages((current) => [...current, { author: "user", text }]);
+    if (isLocalActionRequest(text)) {
+      setStatus("thinking");
+      setPendingWebAction(null);
+      try {
+        const localAction = await planLocalAction(text);
+        setPendingLocalAction(localAction);
+        const reply = `I can open ${localAction.label}. Select Open ${localAction.label} to continue.`;
+        setMessages((current) => [...current, { author: "jarvis", text: reply }]);
+        setStatus("idle");
+        void playSpeech(reply);
+      } catch (reason) {
+        setError(reason instanceof Error ? reason.message : "Jarvis could not prepare that local action.");
+        setStatus("error");
+      }
+      return;
+    }
     if (isWebActionRequest(text)) {
       setStatus("thinking");
+      setPendingLocalAction(null);
       try {
         const webAction = await planWebAction(text);
         setPendingWebAction(webAction);
@@ -148,6 +181,22 @@ export function App() {
     window.open(pendingWebAction.url, "_blank", "noopener,noreferrer");
     setMessages((current) => [...current, { author: "jarvis", text: `Opening ${pendingWebAction.label} in a new tab.` }]);
     setPendingWebAction(null);
+  }
+
+  async function openConfirmedLocalAction() {
+    if (!pendingLocalAction) return;
+    setStatus("thinking");
+    try {
+      const result = await executeLocalAction(pendingLocalAction.appId);
+      setMessages((current) => [...current, { author: "jarvis", text: result.message }]);
+      setPendingLocalAction(null);
+      setLocalActionsState("ready");
+      void playSpeech(result.message);
+    } catch (reason) {
+      setLocalActionsState("error");
+      setError(reason instanceof Error ? reason.message : "Jarvis could not open that application.");
+      setStatus("error");
+    }
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -203,6 +252,7 @@ export function App() {
     { label: "MICROPHONE", state: microphoneState },
     { label: "SPEECH TO TEXT", state: sttState },
     { label: "TEXT TO SPEECH", state: ttsState },
+    { label: "LOCAL ACTIONS", state: localActionsState, detail: localActionsEnabled ? "READY" : "DISABLED" },
   ];
 
   return <main className="app-shell">
@@ -210,6 +260,9 @@ export function App() {
       <source src={cyberpunkBackgroundVideo} type="video/mp4" />
     </video>
     <AmbientHud active={active} level={status === "listening" ? level : status === "speaking" ? .72 : .35} />
+    <MovablePanel id="orb" label="Jarvis voice orb" className="orb-panel" defaultPosition={panelPositions.current.orb}>
+      <OrbControl disabled={status === "thinking" || backendStarting} state={status} onStart={() => void startListening()} onStop={finishListening} />
+    </MovablePanel>
     <MovablePanel id="activity" label="Activity monitor" className="activity-panel" defaultPosition={panelPositions.current.activity}>
       <ActivityMonitor state={status} />
     </MovablePanel>
@@ -222,7 +275,7 @@ export function App() {
     <MovablePanel id="conversation" label="Jarvis conversation" className="chat-panel" defaultPosition={panelPositions.current.chat}>
       <section className="chat-card" aria-label="Jarvis assistant">
       <p className="jarvis-brand">JARVIS</p><h1>At your service.</h1><p className="connection-state">{stateLabel}</p>
-      <div className="messages" ref={messagesRef} aria-live="polite">{messages.length === 0 && <p>Type a message or hold to talk.</p>}{messages.map((message, index) => <p className={`message ${message.author}`} key={`${message.author}-${index}`}>{message.text}</p>)}{status === "thinking" && <p className="message jarvis">Thinking…</p>}{pendingWebAction && <div className="web-action-confirmation"><p>OPEN {pendingWebAction.label.toUpperCase()}?</p><small>{pendingWebAction.url}</small><div><button type="button" onClick={openConfirmedWebAction}>Open new tab</button><button type="button" onClick={() => setPendingWebAction(null)}>Cancel</button></div></div>}</div>
+      <div className="messages" ref={messagesRef} aria-live="polite">{messages.length === 0 && <p>Type a message or hold to talk.</p>}{messages.map((message, index) => <p className={`message ${message.author}`} key={`${message.author}-${index}`}>{message.text}</p>)}{status === "thinking" && <p className="message jarvis">Thinking…</p>}{pendingWebAction && <div className="web-action-confirmation"><p>OPEN {pendingWebAction.label.toUpperCase()}?</p><small>{pendingWebAction.url}</small><div><button type="button" onClick={openConfirmedWebAction}>Open new tab</button><button type="button" onClick={() => setPendingWebAction(null)}>Cancel</button></div></div>}{pendingLocalAction && <div className="web-action-confirmation"><p>OPEN {pendingLocalAction.label.toUpperCase()}?</p><small>LOCAL BRIDGE / USER CONFIRMATION REQUIRED</small><div><button type="button" onClick={() => void openConfirmedLocalAction()}>Open {pendingLocalAction.label}</button><button type="button" onClick={() => setPendingLocalAction(null)}>Cancel</button></div></div>}</div>
       <button className={`talk-button ${status === "listening" ? "is-listening" : ""}`} type="button" onPointerDown={(event) => { event.currentTarget.setPointerCapture(event.pointerId); void startListening(); }} onPointerUp={finishListening} onPointerCancel={finishListening} disabled={status === "thinking" || backendStarting}>{status === "listening" ? "Release to send" : backendStarting ? "Starting Jarvis…" : "Hold to talk"}</button>
       <form onSubmit={handleSubmit} noValidate className="composer"><label className="sr-only" htmlFor="chat-input">Message Jarvis</label><input id="chat-input" value={input} maxLength={2000} onChange={(event) => setInput(event.target.value)} placeholder="Type a message…" disabled={status === "thinking" || backendStarting}/><button type="submit" disabled={!input.trim() || status === "thinking" || backendStarting}>Send</button></form>
       <label className="voice-picker" htmlFor="voice-select">Voice<select id="voice-select" value={voiceId} onChange={(event) => setVoiceId(event.target.value)} disabled={!voices.length}>{voices.map((voice) => <option key={voice.id} value={voice.id}>{voice.label}</option>)}</select></label>

@@ -27,6 +27,25 @@ destination URL and the browser opens it only after a visible click. YouTube and
 Spotify playback still requires the user's interaction on those sites because
 their providers and browsers enforce playback/login policies.
 
+## Optional local-app bridge
+
+Jarvis can optionally open four Windows applications: Calculator, Notepad,
+File Explorer, and Visual Studio Code. This is disabled by default. To enable
+it only for your local workshop machine, add this to `app/backend/.env` and
+restart the backend:
+
+```text
+JARVIS_LOCAL_ACTIONS_ENABLED=true
+```
+
+The backend must stay bound to `127.0.0.1`. Jarvis always shows a confirmation
+button before opening an application. The backend accepts only fixed allowlist
+IDs; it never accepts a path, executable name, argument, shell command, or
+model-generated program launch instruction.
+
+This bridge is intentionally unavailable in a browser-only deployment. A
+publicly hosted frontend must not be configured to access local applications.
+
 ## Run locally
 
 Open two terminals from the project root.
