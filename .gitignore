@@ -20,3 +20,8 @@ app/backend/sidecar-diagnostic.*
 .vscode/
 .idea/
 Thumbs.db
+
+# Project internal documentation & progress tracking
+AGENTS.md
+DESIGN.md
+progress.md
