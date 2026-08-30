@@ -1,7 +1,10 @@
 import json
+import os
 import re
+import sys
 from typing import Literal
 from urllib.parse import quote_plus, urlparse, urlunparse
+import webbrowser
 
 import requests
 
@@ -78,3 +81,23 @@ def make_web_action_plan(text: str) -> dict[str, str]:
     if kind == "spotify_search":
         return {"kind": kind, "label": f"Spotify search: {query}", "url": f"https://open.spotify.com/search/{quote_plus(query)}"}
     return {"kind": kind, "label": f"Web search: {query}", "url": f"https://www.google.com/search?q={quote_plus(query)}"}
+
+
+def open_web_url(url: str) -> None:
+    parsed = urlparse(url)
+    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+        raise ValueError("Invalid web URL scheme or host.")
+    if sys.platform == "win32":
+        try:
+            import ctypes
+            ctypes.windll.user32.AllowSetForegroundWindow(-1)
+        except Exception:
+            pass
+        try:
+            os.startfile(url)  # type: ignore[attr-defined]
+            return
+        except Exception:
+            pass
+    webbrowser.open(url)
+
+

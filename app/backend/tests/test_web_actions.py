@@ -29,3 +29,15 @@ def test_web_action_endpoint_returns_constrained_plan(monkeypatch) -> None:
     body = response.json()
     assert body["kind"] == "web_search"
     assert body["url"].startswith("https://www.google.com/search?q=")
+
+
+def test_web_action_open_endpoint_launches_url(monkeypatch) -> None:
+    monkeypatch.setattr("app.services.web_action_planner._model_classification", lambda _: None)
+    opened: list[str] = []
+    monkeypatch.setattr("app.api.web_actions.open_web_url", lambda url: opened.append(url))
+    response = client.post("/api/web-actions/open", json={"text": "open YouTube"})
+    assert response.status_code == 200
+    assert response.json()["kind"] == "youtube_search"
+    assert len(opened) == 1
+    assert "youtube.com" in opened[0]
+

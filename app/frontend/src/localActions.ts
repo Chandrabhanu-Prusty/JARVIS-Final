@@ -1,4 +1,5 @@
 import { API_BASE_URL } from "./api/client";
+import { isCapabilityQuery } from "./webActions";
 
 export type LocalAction = {
   kind: "open_local_app";
@@ -11,6 +12,7 @@ const localAppPattern = /\b(calculator|calc|notepad|file explorer|explorer|visua
 const launchPattern = /\b(open|launch|start)\b/i;
 
 export function isLocalActionRequest(text: string): boolean {
+  if (isCapabilityQuery(text)) return false;
   return launchPattern.test(text) && localAppPattern.test(text);
 }
 

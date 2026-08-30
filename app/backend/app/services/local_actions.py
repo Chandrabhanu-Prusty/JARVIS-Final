@@ -58,7 +58,29 @@ def execute_local_action(app_id: LocalAppId) -> LocalApp:
     if app is None:
         raise ValueError("That application is not allowlisted.")
 
+    # Enable foreground window permission so the application window pops up in front of Jarvis
+    if sys.platform == "win32":
+        try:
+            import ctypes
+            ctypes.windll.user32.AllowSetForegroundWindow(-1)
+        except Exception:
+            pass
+
     # os.startfile delegates a fixed application/protocol target to Windows.
     # It never receives content from the browser, user, or model.
     os.startfile(app.launch_target)  # type: ignore[attr-defined]
+
+    # Ensure the newly opened or existing app window is brought directly to the front
+    if sys.platform == "win32":
+        try:
+            import subprocess
+            cmd = f"Start-Sleep -Milliseconds 150; (New-Object -ComObject WScript.Shell).AppActivate('{app.label}')"
+            subprocess.Popen(
+                ["powershell", "-NoProfile", "-NonInteractive", "-Command", cmd],
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            )
+        except Exception:
+            pass
+
     return app
+

@@ -8,8 +8,8 @@ import { BriefingPanel } from "./components/BriefingPanel";
 import { MovablePanel } from "./components/MovablePanel";
 import { OrbControl } from "./components/OrbControl";
 import { waitForBackend } from "./api/system";
-import { isWebActionRequest, planWebAction, WebAction } from "./webActions";
-import { executeLocalAction, getLocalActionStatus, isLocalActionRequest, LocalAction, planLocalAction } from "./localActions";
+import { isWebActionRequest, openWebAction } from "./webActions";
+import { executeLocalAction, getLocalActionStatus, isLocalActionRequest, planLocalAction } from "./localActions";
 import cyberpunkBackgroundVideo from "./assets/cyberpunk-background.mp4";
 
 type Message = { author: "user" | "jarvis"; text: string };
@@ -55,8 +55,6 @@ export function App() {
   const [localActionsEnabled, setLocalActionsEnabled] = useState(false);
   const [networkState, setNetworkState] = useState<ComponentState>(() => navigator.onLine ? "ready" : "error");
   const [bluetoothState] = useState<ComponentState>(() => "bluetooth" in navigator ? "ready" : "unknown");
-  const [pendingWebAction, setPendingWebAction] = useState<WebAction | null>(null);
-  const [pendingLocalAction, setPendingLocalAction] = useState<LocalAction | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -89,7 +87,7 @@ export function App() {
   }, []);
   useEffect(() => { const updateNetwork = () => setNetworkState(navigator.onLine ? "ready" : "error"); window.addEventListener("online", updateNetwork); window.addEventListener("offline", updateNetwork); return () => { window.removeEventListener("online", updateNetwork); window.removeEventListener("offline", updateNetwork); }; }, []);
   useEffect(() => () => { stopSpeech(); stopCapture(); }, []);
-  useEffect(() => { requestAnimationFrame(() => messagesRef.current?.scrollTo({ top: messagesRef.current.scrollHeight, behavior: "smooth" })); }, [messages, pendingWebAction, pendingLocalAction, status]);
+  useEffect(() => { requestAnimationFrame(() => messagesRef.current?.scrollTo({ top: messagesRef.current.scrollHeight, behavior: "smooth" })); }, [messages, status]);
 
   function stopSpeech() {
     audioRef.current?.pause();
@@ -132,33 +130,33 @@ export function App() {
     setMessages((current) => [...current, { author: "user", text }]);
     if (isLocalActionRequest(text)) {
       setStatus("thinking");
-      setPendingWebAction(null);
       try {
         const localAction = await planLocalAction(text);
-        setPendingLocalAction(localAction);
-        const reply = `I can open ${localAction.label}. Select Open ${localAction.label} to continue.`;
-        setMessages((current) => [...current, { author: "jarvis", text: reply }]);
+        const result = await executeLocalAction(localAction.appId);
+        setMessages((current) => [...current, { author: "jarvis", text: result.message }]);
+        setLocalActionsState("ready");
         setStatus("idle");
-        void playSpeech(reply);
+        void playSpeech(result.message);
       } catch (reason) {
-        setError(reason instanceof Error ? reason.message : "Jarvis could not prepare that local action.");
+        setLocalActionsState("error");
+        setError(reason instanceof Error ? reason.message : "Jarvis could not open that local application.");
         setStatus("error");
       }
       return;
     }
     if (isWebActionRequest(text)) {
       setStatus("thinking");
-      setPendingLocalAction(null);
       try {
-        const webAction = await planWebAction(text);
-        setPendingWebAction(webAction);
-        const reply = `I prepared ${webAction.label}. Select Open new tab to continue.`;
+        const webAction = await openWebAction(text);
+        const reply = `Opening ${webAction.label}.`;
         setMessages((current) => [...current, { author: "jarvis", text: reply }]);
         setStatus("idle");
         void playSpeech(reply);
         return;
       } catch (reason) {
-        setError(reason instanceof Error ? reason.message : "Jarvis could not prepare that web action.");
+        setError(reason instanceof Error ? reason.message : "Jarvis could not open that website.");
+        setStatus("error");
+        return;
       }
     }
     setStatus("thinking");
@@ -170,31 +168,6 @@ export function App() {
     } catch (reason) {
       setChatState("error");
       setError(reason instanceof Error ? reason.message : "Jarvis could not process that message.");
-      setStatus("error");
-    }
-  }
-
-  function openConfirmedWebAction() {
-    if (!pendingWebAction) return;
-    // This runs inside the user's confirmation click, which browsers permit as
-    // a new-tab navigation. The backend generates the URL from constrained plan data.
-    window.open(pendingWebAction.url, "_blank", "noopener,noreferrer");
-    setMessages((current) => [...current, { author: "jarvis", text: `Opening ${pendingWebAction.label} in a new tab.` }]);
-    setPendingWebAction(null);
-  }
-
-  async function openConfirmedLocalAction() {
-    if (!pendingLocalAction) return;
-    setStatus("thinking");
-    try {
-      const result = await executeLocalAction(pendingLocalAction.appId);
-      setMessages((current) => [...current, { author: "jarvis", text: result.message }]);
-      setPendingLocalAction(null);
-      setLocalActionsState("ready");
-      void playSpeech(result.message);
-    } catch (reason) {
-      setLocalActionsState("error");
-      setError(reason instanceof Error ? reason.message : "Jarvis could not open that application.");
       setStatus("error");
     }
   }
@@ -275,7 +248,7 @@ export function App() {
     <MovablePanel id="conversation" label="Jarvis conversation" className="chat-panel" defaultPosition={panelPositions.current.chat}>
       <section className="chat-card" aria-label="Jarvis assistant">
       <p className="jarvis-brand">JARVIS</p><h1>At your service.</h1><p className="connection-state">{stateLabel}</p>
-      <div className="messages" ref={messagesRef} aria-live="polite">{messages.length === 0 && <p>Type a message or hold to talk.</p>}{messages.map((message, index) => <p className={`message ${message.author}`} key={`${message.author}-${index}`}>{message.text}</p>)}{status === "thinking" && <p className="message jarvis">Thinking…</p>}{pendingWebAction && <div className="web-action-confirmation"><p>OPEN {pendingWebAction.label.toUpperCase()}?</p><small>{pendingWebAction.url}</small><div><button type="button" onClick={openConfirmedWebAction}>Open new tab</button><button type="button" onClick={() => setPendingWebAction(null)}>Cancel</button></div></div>}{pendingLocalAction && <div className="web-action-confirmation"><p>OPEN {pendingLocalAction.label.toUpperCase()}?</p><small>LOCAL BRIDGE / USER CONFIRMATION REQUIRED</small><div><button type="button" onClick={() => void openConfirmedLocalAction()}>Open {pendingLocalAction.label}</button><button type="button" onClick={() => setPendingLocalAction(null)}>Cancel</button></div></div>}</div>
+      <div className="messages" ref={messagesRef} aria-live="polite">{messages.length === 0 && <p>Type a message or hold to talk.</p>}{messages.map((message, index) => <p className={`message ${message.author}`} key={`${message.author}-${index}`}>{message.text}</p>)}{status === "thinking" && <p className="message jarvis">Thinking…</p>}</div>
       <button className={`talk-button ${status === "listening" ? "is-listening" : ""}`} type="button" onPointerDown={(event) => { event.currentTarget.setPointerCapture(event.pointerId); void startListening(); }} onPointerUp={finishListening} onPointerCancel={finishListening} disabled={status === "thinking" || backendStarting}>{status === "listening" ? "Release to send" : backendStarting ? "Starting Jarvis…" : "Hold to talk"}</button>
       <form onSubmit={handleSubmit} noValidate className="composer"><label className="sr-only" htmlFor="chat-input">Message Jarvis</label><input id="chat-input" value={input} maxLength={2000} onChange={(event) => setInput(event.target.value)} placeholder="Type a message…" disabled={status === "thinking" || backendStarting}/><button type="submit" disabled={!input.trim() || status === "thinking" || backendStarting}>Send</button></form>
       <label className="voice-picker" htmlFor="voice-select">Voice<select id="voice-select" value={voiceId} onChange={(event) => setVoiceId(event.target.value)} disabled={!voices.length}>{voices.map((voice) => <option key={voice.id} value={voice.id}>{voice.label}</option>)}</select></label>
