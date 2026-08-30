@@ -16,87 +16,13 @@ JARVIS is a lightweight, responsive, and secure desktop AI assistant engineered 
 
 ## 🏗️ System Architecture
 
-```text
-┌───────────────────────────────────────────────────────────────────────────────────┐
-│                             JARVIS CLIENT LAYER (UI)                              │
-│                                                                                   │
-│   React 19 + TypeScript + Vite                                                    │
-│   ├─ Cyberpunk Atmospheric HUD (Video Background + Audio Reactive Signal Field)   │
-│   ├─ Movable Panels & Voice Orb (Custom coordinate positioning & persistence)     │
-│   ├─ Web Audio API Analyzer (Real-time microphone volume & animation sync)        │
-│   ├─ Audio Recorder (Opus/WebM Blob packaging)                                    │
-│   └─ Intent Classifier & Capability Filter (Filters questions vs launch commands) │
-└────────────────────────────────────────┬──────────────────────────────────────────┘
-                                         │ REST API / JSON (Proxy on :1420 -> :8765)
-                                         ▼
-┌───────────────────────────────────────────────────────────────────────────────────┐
-│                             JARVIS BACKEND CORE (API)                             │
-│                                                                                   │
-│   FastAPI (Python 3.11+) Service (:8765)                                          │
-│   ├─ /api/chat           -> Groq Chat Engine (Bounded 6-Turn Sliding Memory)      │
-│   ├─ /api/speech/stt     -> Groq Whisper Large v3 Transcription                   │
-│   ├─ /api/speech/tts     -> Edge TTS Neural Voice Synthesizer                     │
-│   ├─ /api/web-actions    -> Sanitized URL Generator & Default Browser Dispatcher  │
-│   └─ /api/local-actions  -> Allowlist Bridge (Native Windows Process Launcher)    │
-└───────────────────────┬───────────────────────────────────┬───────────────────────┘
-                        │                                   │
-       External Cloud Services                     Native Windows OS Bridge
-                        │                                   │
-        ┌───────────────┴───────────────┐           ┌───────┴───────────────────────┐
-        │ • Groq Cloud (Llama / Whisper)│           │ • Windows ShellExecute        │
-        │ • Microsoft Edge Speech API   │           │ • AllowSetForegroundWindow    │
-        │ • Web / Google / YouTube /    │           │ • WScript.Shell.AppActivate   │
-        │   Spotify External Search URLs│           │ • Notepad / Calc / VS Code    │
-        └───────────────────────────────┘           └───────────────────────────────┘
-```
+![JARVIS Architecture Diagram](app/frontend/src/assets/Architect%20Diagram.png)
 
 ---
 
 ## 🔄 Execution Workflows
 
-### 1. Voice Interaction Pipeline
-```text
-User speaks (Hold Orb) ──► AudioContext (Opus/WebM) ──► POST /api/speech/stt (Groq Whisper)
-                                                                    │
-                                                            Transcript Returned
-                                                                    │
-                                                                    ▼
-                                                            Intent Router
-                                                            ├── Capability Query ──► /api/chat (Groq LLM) ──► Edge TTS
-                                                            ├── Local App Action ──► /api/local-actions/execute
-                                                            └── Web Search Action ──► /api/web-actions/open
-```
-
-### 2. Desktop App Launch Flow
-```text
-User: "Open Notepad" ──► isLocalActionRequest() ──► POST /api/local-actions/plan
-                                                               │
-                                                       Plan: appId="notepad"
-                                                               │
-                                                               ▼
-                                                  POST /api/local-actions/execute
-                                                               │
-                                              AllowSetForegroundWindow(-1)
-                                                               │
-                                                os.startfile("notepad.exe")
-                                                               │
-                                                WScript.Shell.AppActivate()
-                                                               │
-                                                App pops up in front of Jarvis
-```
-
-### 3. Web Navigation & Search Flow
-```text
-User: "Open YouTube" ──► isWebActionRequest() ──► POST /api/web-actions/open
-                                                               │
-                                                Sanitize & Build Search URL
-                                                               │
-                                                os.startfile(url) on Windows
-                                                               │
-                                                Default Browser Opens URL
-                                                               │
-                                                Jarvis confirms via Speech
-```
+![JARVIS Workflow Diagram](app/frontend/src/assets/WorkFlow%20Diagram.png)
 
 ---
 
